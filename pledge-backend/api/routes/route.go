@@ -22,7 +22,8 @@ func InitRoute(e *gin.Engine) *gin.Engine {
 
 	// plgr-usdt price
 	priceController := controllers.PriceController{}
-	v2Group.GET("/price", priceController.NewPrice) //new price on ku-coin-exchange
+	v2Group.GET("/price", priceController.NewPrice)           //new price on ku-coin-exchange
+	v2Group.GET("/price/latest", priceController.Latest)      //latest plgr/usdt price
 
 	// pledge-defi admin backend
 	multiSignPoolController := controllers.MultiSignPoolController{}

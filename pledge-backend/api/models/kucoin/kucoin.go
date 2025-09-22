@@ -1,9 +1,11 @@
 package kucoin
 
 import (
-	"github.com/Kucoin/kucoin-go-sdk"
-	"pledge-backend/db"
-	"pledge-backend/log"
+    "github.com/Kucoin/kucoin-go-sdk"
+    "pledge-backend/db"
+    "pledge-backend/log"
+    "strconv"
+    "time"
 )
 
 // ApiKeyVersionV2 is v2 api key version
@@ -43,39 +45,51 @@ func GetExchangePrice() {
 		return
 	}
 
-	c := s.NewWebSocketClient(tk)
+    for {
+        c := s.NewWebSocketClient(tk)
 
-	mc, ec, err := c.Connect()
-	if err != nil {
-		log.Logger.Sugar().Errorf("Error: %s", err.Error())
-		return
-	}
+        mc, ec, err := c.Connect()
+        if err != nil {
+            log.Logger.Sugar().Errorf("Error: %s", err.Error())
+            time.Sleep(3 * time.Second)
+            continue
+        }
 
-	ch := kucoin.NewSubscribeMessage("/market/ticker:PLGR-USDT", false)
-	uch := kucoin.NewUnsubscribeMessage("/market/ticker:PLGR-USDT", false)
+        ch := kucoin.NewSubscribeMessage("/market/ticker:PLGR-USDT", false)
+        uch := kucoin.NewUnsubscribeMessage("/market/ticker:PLGR-USDT", false)
 
-	if err := c.Subscribe(ch); err != nil {
-		log.Logger.Error(err.Error()) // Handle error
-		return
-	}
+        if err := c.Subscribe(ch); err != nil {
+            log.Logger.Error(err.Error()) // Handle error
+            c.Stop()
+            time.Sleep(3 * time.Second)
+            continue
+        }
 
-	for {
-		select {
-		case err := <-ec:
-			c.Stop() // Stop subscribing the WebSocket feed
-			log.Logger.Sugar().Errorf("Error: %s", err.Error())
-			_ = c.Unsubscribe(uch)
-			return
-		case msg := <-mc:
-			t := &kucoin.TickerLevel1Model{}
-			if err := msg.ReadData(t); err != nil {
-				log.Logger.Sugar().Errorf("Failure to read: %s", err.Error())
-				return
-			}
-			PlgrPriceChan <- t.Price
-			PlgrPrice = t.Price
-			//log.Logger.Sugar().Info("Price ", t.Price)
-			_ = db.RedisSetString("plgr_price", PlgrPrice, 0)
-		}
-	}
+        for {
+            select {
+            case err := <-ec:
+                c.Stop() // Stop subscribing the WebSocket feed
+                log.Logger.Sugar().Errorf("Error: %s", err.Error())
+                _ = c.Unsubscribe(uch)
+                time.Sleep(3 * time.Second)
+                goto reconnect
+            case msg := <-mc:
+                t := &kucoin.TickerLevel1Model{}
+                if err := msg.ReadData(t); err != nil {
+                    log.Logger.Sugar().Errorf("Failure to read: %s", err.Error())
+                    c.Stop()
+                    time.Sleep(3 * time.Second)
+                    goto reconnect
+                }
+                PlgrPriceChan <- t.Price
+                PlgrPrice = t.Price
+                _ = db.RedisSetString("plgr_price", PlgrPrice, 0)
+                _ = db.RedisSetString("plgr_price_updated_at", strconv.FormatInt(time.Now().Unix(), 10), 0)
+                _ = db.RedisSetString("plgr_price_source", "kucoin", 0)
+            }
+        }
+    reconnect:
+        // loop will restart
+        continue
+    }
 }

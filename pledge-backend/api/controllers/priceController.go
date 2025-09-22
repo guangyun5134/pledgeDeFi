@@ -1,14 +1,16 @@
 package controllers
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
-	"net/http"
-	"pledge-backend/api/models/ws"
-	"pledge-backend/log"
-	"pledge-backend/utils"
-	"strings"
-	"time"
+    "github.com/gin-gonic/gin"
+    "github.com/gorilla/websocket"
+    "net/http"
+    "pledge-backend/api/models/ws"
+    "pledge-backend/api/services"
+    "pledge-backend/api/models/response"
+    "pledge-backend/log"
+    "pledge-backend/utils"
+    "strings"
+    "time"
 )
 
 type PriceController struct {
@@ -52,4 +54,12 @@ func (c *PriceController) NewPrice(ctx *gin.Context) {
 	}
 
 	go server.ReadAndWrite()
+}
+
+// Latest returns latest PLGR price and metadata
+func (c *PriceController) Latest(ctx *gin.Context) {
+    res := response.Gin{Res: ctx}
+    code, data := services.NewPrice().GetLatest()
+    res.Response(ctx, code, data)
+    return
 }
