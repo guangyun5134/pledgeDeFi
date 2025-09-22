@@ -58,8 +58,8 @@ func (s *Server) ReadAndWrite() {
 
 	Manager.Servers.Store(s.Id, s)
 
-	defer func() {
-		Manager.Servers.Delete(s)
+    defer func() {
+        Manager.Servers.Delete(s.Id)
 		_ = s.Socket.Close()
 		close(s.Send)
 	}()
